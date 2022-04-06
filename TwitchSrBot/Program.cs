@@ -11,10 +11,27 @@ using TwitchLib.Communication.Events;
 using TwitchLib.Communication.Models;
 
 
+//configurations
 string prefix = "$";
 string requestCommand = "!sr";
 string spotifyAPI = "https://api.spotify.com/v1/playlists/playlist_id/tracks";
 string songQueueLink = "https://streamlabs.com/api/v6/521267c39566929/chatbot/data/twitch_account";
+
+
+//message returned by help command
+string helpMessage =
+    $"{prefix}help [command] | displays info about the specified command | {prefix}commands <- list of commands";
+
+
+//commands and their help responses
+Dictionary<string, string> commandList = new Dictionary<string, string>()
+{
+    {"commands", "returns a all commands"},
+    {"pr", $"{prefix}pr [playlist link] | request a spotify playlist"},
+    {"ql", $"{prefix}ql | returns amount of songs in queue"},
+    {"help", helpMessage},
+    {"", helpMessage}
+};
 
 
 //set up credentials
@@ -30,9 +47,10 @@ TotalCredentials totalCredentials = new TotalCredentials()
 };
 
 
+string queuePath = Directory.GetCurrentDirectory() + @"/Data/queue.txt";
+List<string> queue = File.ReadAllLines(queuePath).ToList();
+
 TwitchClient client;
-Dictionary<string, string> songsAndArtists = new Dictionary<string, string>();
-string[] songs = new string[] { };
 AccessToken accessToken = new AccessToken();
 accessToken.expires_in = 3600;
 
@@ -54,17 +72,17 @@ var startTimeSpanReq = TimeSpan.Zero;
 var periodTimeSpanReq = TimeSpan.FromSeconds(60);
 var reqTimer = new System.Threading.Timer((e) =>
 {
-    string? songToReq = songsAndArtists.FirstOrDefault().Key;
+    string? songToReq = queue.FirstOrDefault();
     if (songToReq != null)
     {
         if (GetCurrentRequests() < 2)
         {
-            songsAndArtists.TryGetValue(songToReq, out var curArtist);
-            ClientSendMessage(requestCommand + " " + songToReq + " - " + curArtist);
+            ClientSendMessage(requestCommand + " " + songToReq);
             
             //possibly implement check for success here
-            songsAndArtists.Remove(songToReq);
-            Console.WriteLine("Songs left in queue: " + songsAndArtists.Count);
+            queue.Remove(songToReq);
+            File.WriteAllLines(queuePath, queue);
+            Console.WriteLine("Songs left in queue: " + queue.Count);
         }
     }
     
@@ -78,6 +96,12 @@ while (true)
     if (cur != null && cur.StartsWith("say"))
     {
         ClientSendMessage(cur.Remove(0, 3).ToString());
+    }
+    else if(cur != null && cur.ToLower().StartsWith("clearlist"))
+    {
+        queue = new List<string>();
+        File.WriteAllLines(queuePath, queue);
+        Console.WriteLine("Cleared list");
     }
 }
 
@@ -158,16 +182,17 @@ void ClientOnDisconnected(object? sender, OnDisconnectedEventArgs e)
 {
     Console.WriteLine("Disconnected: " + e.ToString());
     Console.WriteLine("Attempting to Reconnect...");
-    client.Reconnect();
+    client.Connect();
 }
 
+
+//filter for command messages
 void ClientOnLog(object sender, OnLogArgs e)
 {
     if (e.Data.Contains("PRIVMSG"))
     {
         string msg = e.Data.Split("PRIVMSG")[1];
         string crop = " #" + totalCredentials.ChannelsToBot.ToLower() +" :";
-
         ParseMessage(msg.Remove(0, crop.Length));
     }
     
@@ -192,17 +217,73 @@ void ClientSendMessage(string message)
 
 }
 
+string GetCommandList()
+{
+    string returnString = "";
+    bool isFirst = true;
+    foreach (var pair in commandList)
+    {
+        if (!isFirst)
+        {
+            returnString += $" | {pair.Key}";
+        }
+        else
+        {
+            isFirst = false;
+        }
+        
+    }
+    return returnString.Remove(returnString.Length-2, 2);
+}
+
+
+//handles commands
 void ParseMessage(string message)
 {
     if (message.StartsWith(prefix))
     {
-        string command = message.Split(" ")[0].Remove(0,prefix.Length);
-        string commandContent = message.Split(" ")[1];
-
+        string commandContent;
+        var command = message.Split(" ")[0].Remove(0,prefix.Length);
+        if (message.Contains(" "))
+        {
+            commandContent = message.Split(" ")[1];
+        }
+        else
+        {
+            commandContent = "";
+        }
+        
         switch (command)
         {
+            case "commands":
+                ClientSendMessage($"commands(prefix = {prefix}) {GetCommandList()}");
+                break;
+            
             case "pr":
                 AddSongsFromLink(commandContent);
+                break;
+            
+            case "ql":
+                string? item = queue.FirstOrDefault();
+                if (item != null)
+                {
+                    ClientSendMessage("Songs in queue: " + queue.Count);
+                }
+                else
+                {
+                    ClientSendMessage("No songs in queue");
+                }
+                break;
+            
+            case "help":
+                if (commandList.TryGetValue(commandContent, out var neededHelp))
+                {
+                    if (neededHelp != null)
+                    {
+                        ClientSendMessage(neededHelp);
+                    }
+                }
+                
                 break;
             default:
                 break;
@@ -227,11 +308,13 @@ void AddSongsFromLink(string playlistLink)
         string song = item["track"]["name"].Value;
         string artist = item["track"]["artists"][0]["name"].Value;
 
-        songsAndArtists.Add(key: song, value: artist);
+        queue.Add($"{song} - {artist}");
         requestedSongs++;
     }
     
+    File.WriteAllLines(queuePath, queue);
     ClientSendMessage($"Added {requestedSongs} songs to request list");
+    Console.WriteLine($"Added {requestedSongs} songs to request list");
 }
 
 //returns playlistID based on url
@@ -257,4 +340,3 @@ class TotalCredentials
     public string SpotifyClientId { get; set; }
     public string SpotifyClientSecret { get; set; }
 }
-
