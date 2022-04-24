@@ -1,18 +1,23 @@
 # TwitchSrBot
 takes spotify playlists and requests the songs 1 by 1 to a twitch sr bot
-<br/>
+<br/><br/>
 credPath = path to config file 
 <br/>config file structure:
-<br/>  twitchBotName,oauth:[insertOAuthToken] 
-<br/>  streamerName
-<br/>  spotifyClientId
-<br/>  spotifyClientSecret
-<br/> 
+```
+twitchBotName,oauth:[insertOAuthToken] 
+streamerName
+spotifyClientId
+spotifyClientSecret
+```
   
-<br/>console commands:
-<br/>  say [message to send to twitch chat]
-<br/>  swapmode (toggles "ignore" mode)
-<br/> 
-  
-<br/>with ignore mode enabled(default) the bot will request when theres 2< songs requested by itself in the queue
-<br/>with ignore mode disabled the bot will only request when theres 2< songs in the queue total
+console commands:
+```
+say [message to send to twitch chat]
+swapmode (toggles "ignore" mode)
+```
+
+ignore mode:
+```
+enabled(default): requests when 2< songs requested by itself in the queue
+disabled: requests when 2< songs in the queue total
+```
