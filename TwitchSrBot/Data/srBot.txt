@@ -1,0 +1,7 @@
+﻿twitchBotName,oauth:[insertOAuthToken] 
+streamerName
+spotifyClientId
+spotifyClientSecret
+queueLink
+prefix
+streamerRequestCommand
